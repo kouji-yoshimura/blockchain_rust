@@ -1,9 +1,14 @@
 use rand_core::OsRng;
-use k256::ecdsa::{
-    SigningKey,
-    Signature,
-    VerifyingKey,
-    signature::Signer
+use k256::{
+    ecdsa::{
+        SigningKey,
+        Signature,
+        VerifyingKey,
+        signature::{
+            Signer,
+            Verifier,
+        },
+    },
 };
 
 pub fn public_key_from(private_key: String) -> Result<String, String> {
@@ -28,6 +33,21 @@ pub fn sign(private_key: String, data: String) -> Result<String, String> {
             return Err(error.to_string())
         }
     };
+}
+
+pub fn verify(public_key: String, transaction_id: String, signature: String) -> Result<(), String> {
+    let verifying_key = match VerifyingKey::from_sec1_bytes(&decode_hex(public_key)) {
+        Err(error) => return Err(error.to_string()),
+        Ok(v) => v,
+    };
+    let signature = match Signature::from_slice(&decode_hex(signature)) {
+        Err(error) => return Err(error.to_string()),
+        Ok(v) => v,
+    };
+    match verifying_key.verify(&decode_hex(transaction_id), &signature) {
+        Ok(()) => Ok(()),
+        Err(error) => Err(error.to_string())
+    }
 }
 
 fn encode_hex(bytes: &[u8]) -> String {
