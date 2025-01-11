@@ -1,0 +1,17 @@
+[package]
+name = "blockchain_rust"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = "0.8.1"
+base64 = "0.22.1"
+dotenv = "0.15.0"
+k256 = "0.13.4"
+rand_core = { version = "0.6.4", features = ["getrandom"] }
+serde = { version = "1.0.217", features = ["derive"] }
+sha1 = "0.10.6"
+sha256 = "1.5.0"
+sqlx = { version = "0.8.3", features = ["sqlite", "runtime-tokio-native-tls", "chrono"] }
+to-binary = "0.4.0"
+tokio = { version = "1.42.0", features = ["full", "macros", "rt-multi-thread"] }
