@@ -1,2 +1,5 @@
 /target
 .env
+wallet/private_key
+database.db
+database.db*

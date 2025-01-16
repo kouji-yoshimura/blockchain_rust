@@ -1,6 +1,14 @@
 use serde::Serialize;
-use crate::block::Block;
-use crate::database::SQLiteBlock;
+use crate::{
+    block::Block,
+    transaction::Transaction,
+    database::sqlite::{
+        SQLiteBlock,
+        SQLiteTransaction,
+        SQLiteTxIn,
+        SQLiteTxOut,
+    },
+};
 
 pub const BLOCK_GENERATION_INTERVAL: u32 = 10;
 pub const DIFFICULTY_ADJUSTMENT_INTERVAL: u32 = 10;
@@ -13,9 +21,24 @@ impl BlockChain {
         BlockChain(vec![Block::get_genesis()])
     }
 
-    pub fn from_sqlite_blocks(sqlite_blocks: Vec<SQLiteBlock>) -> Result<Self, &'static str> {
+    pub fn from_sqlite_blocks(
+        sqlite_blocks: Vec<SQLiteBlock>,
+        sqlite_transactions: Vec<SQLiteTransaction>,
+        sqlite_tx_ins: Vec<SQLiteTxIn>,
+        sqlite_tx_outs: Vec<SQLiteTxOut>,
+    ) -> Result<Self, &'static str> {
         let mut block_chain = BlockChain(vec![]);
-        block_chain.0 = sqlite_blocks.iter().map(|b| Block::from_sqlite_block(b.clone())).collect::<Vec<Block>>();
+        block_chain.0 = sqlite_blocks
+            .iter()
+            .map(|b| {
+                Block::from_sqlite_block(
+                    b.clone(),
+                    sqlite_transactions.clone(),
+                    sqlite_tx_ins.clone(),
+                    sqlite_tx_outs.clone(),
+                )
+            })
+            .collect();
 
         match block_chain.is_valid_chain() {
             Ok(()) => Ok(block_chain),
@@ -42,7 +65,7 @@ impl BlockChain {
         Ok(())
     }
 
-    pub fn append_new_block(&mut self, data: String) -> Block {
+    pub fn append_new_block(&mut self, data: Vec<Transaction>) -> Block {
         let new_block = self.latest_block().find_block(data, self.adjusted_difficulty());
         self.0.push(new_block.clone());
 

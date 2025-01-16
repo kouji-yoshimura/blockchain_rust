@@ -1,19 +1,22 @@
 pub mod tx_out;
 pub mod tx_in;
-pub mod unspent_tx_out;
+pub mod utxo;
+use std::fmt;
+use serde::Serialize;
 use sha256::digest;
 use crate::transaction::{
     tx_in::TxIn,
     tx_out::TxOut,
-    unspent_tx_out::UnspentTxOut,
+    utxo::UTxO,
 };
-use crate::dsa::{
-    public_key_from,
+use crate::mylib::ecdsa::{
+    public_key_from_private_key,
     sign,
 };
 
 const COINBASE_AMOUNT: u32 = 50;
 
+#[derive(Clone, Serialize)]
 pub struct Transaction {
     id: String,
     tx_in_list: Vec<TxIn>,
@@ -25,8 +28,8 @@ impl Transaction {
     pub fn tx_in_list(&self) -> Vec<TxIn> { self.tx_in_list.clone() }
     pub fn tx_out_list(&self) -> Vec<TxOut> { self.tx_out_list.clone() }
 
-    pub fn new(tx_in_list: Vec<TxIn>, tx_out_list: Vec<TxOut>) -> Self {
-        let id = Self::calculate_transaction_id(tx_in_list.clone(), tx_out_list.clone());
+    pub fn new(id: Option<String>, tx_in_list: Vec<TxIn>, tx_out_list: Vec<TxOut>) -> Self {
+        let id = id.unwrap_or(Self::calculate_transaction_id(tx_in_list.clone(), tx_out_list.clone()));
         Transaction {
             id,
             tx_in_list,
@@ -42,13 +45,13 @@ impl Transaction {
         Ok(())
     }
 
-    pub fn check_amount_between_in_and_out(&self, unspent_tx_out_list: Vec<UnspentTxOut>) -> Result<(), &'static str> {
+    pub fn check_amount_between_in_and_out(&self, utxo_list: Vec<UTxO>) -> Result<(), &'static str> {
         let total_tx_in_amount = self.tx_in_list
             .iter()
             .map(|tx_in| {
-                match unspent_tx_out_list.iter().find(|unspent_tx_out| {
-                    unspent_tx_out.tx_out_id() == tx_in.tx_out_id()
-                    && unspent_tx_out.tx_out_index() == tx_in.tx_out_index()
+                match utxo_list.iter().find(|utxo| {
+                    utxo.tx_out_id() == tx_in.tx_out_id()
+                    && utxo.tx_out_index() == tx_in.tx_out_index()
                 }) {
                     Some(tx_out) => tx_out.amount(),
                     None => 0,
@@ -68,7 +71,7 @@ impl Transaction {
         Ok(())
     }
 
-    pub fn is_coinbase(&self, block_index: u32) -> Result<(), &'static str> {
+    pub fn is_coinbase(&self, block_index: usize) -> Result<(), &'static str> {
         if self.tx_in_list().len() != 1 {
             return Err("One TxIn must be specified in the coinbase transaction")
         }
@@ -105,53 +108,71 @@ impl Transaction {
     pub fn sign_tx_in(&self,
         tx_in_index: u32,
         private_key: String,
-        unspent_tx_out_list: Vec<UnspentTxOut>,
+        utxo_list: Vec<UTxO>,
     ) -> Result<String, String> {
         let tx_in = self.tx_in_list[tx_in_index as usize].clone();
         let data_to_sign = self.id.clone();
 
-        let referenced_unspent_tx_out = match unspent_tx_out_list
+        let referenced_utxo = match utxo_list
             .iter()
-            .find(|unspent_tx_out| {
-                unspent_tx_out.tx_out_id() == tx_in.tx_out_id()
-                && unspent_tx_out.tx_out_index() == tx_in.tx_out_index()
+            .find(|utxo| {
+                utxo.tx_out_id() == tx_in.tx_out_id()
+                && utxo.tx_out_index() == tx_in.tx_out_index()
             })
         {
             Some(v) => v,
             None => return Err("Could not referenced tx_out".to_string())
         };
 
-        let referenced_address = referenced_unspent_tx_out.address();
-        if referenced_address != public_key_from(private_key.clone()).unwrap_or("".to_string()) {
+        let referenced_address = referenced_utxo.address();
+        if referenced_address != public_key_from_private_key(private_key.clone()).unwrap_or("".to_string()) {
             return Err("Invalid private key".to_string())
         }
 
         sign(private_key, data_to_sign)
     }
 
-    pub fn new_unspent_tx_out(&self) -> Vec<UnspentTxOut> {
+    pub fn new_utxo(&self) -> Vec<UTxO> {
         self.tx_out_list().iter().enumerate().map(|(index, tx_out)| {
-            UnspentTxOut::new(
+            UTxO::new(
                 self.id(),
-                index as u32,
+                index,
                 tx_out.address(),
                 tx_out.amount(),
             )
         })
-        .collect::<Vec<UnspentTxOut>>()
+        .collect::<Vec<UTxO>>()
     }
 
-    pub fn consumed_unspent_tx_out(&self) -> Vec<UnspentTxOut> {
+    pub fn consumed_utxo(&self) -> Vec<UTxO> {
         self.tx_in_list()
             .iter()
             .map(|tx_in| {
-                UnspentTxOut::new(
+                UTxO::new(
                     tx_in.tx_out_id(),
                     tx_in.tx_out_index(),
                     "".to_string(),
                     0,
                 )
             })
-            .collect::<Vec<UnspentTxOut>>()
+            .collect::<Vec<UTxO>>()
+    }
+}
+
+impl fmt::Display for Transaction {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Transaction{{{},{},{}}}",
+            self.id(),
+            self.tx_in_list()
+                .iter()
+                .map(|v| format!("{}", v))
+                .reduce(|a, b| format!("{}{}", a, b))
+                .unwrap(),
+            self.tx_out_list()
+                .iter()
+                .map(|v| format!("{}", v))
+                .reduce(|a, b| format!("{}{}", a, b))
+                .unwrap(),
+        )
     }
 }

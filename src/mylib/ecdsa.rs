@@ -10,8 +10,14 @@ use k256::{
         },
     },
 };
+use crate::mylib::hex::{encode_hex, decode_hex};
 
-pub fn public_key_from(private_key: String) -> Result<String, String> {
+pub fn generate_private_key() -> String {
+    let private_key: SigningKey = SigningKey::random(&mut OsRng);
+    encode_hex(&private_key.to_bytes())
+}
+
+pub fn public_key_from_private_key(private_key: String) -> Result<String, String> {
     match SigningKey::from_slice(&decode_hex(private_key)) {
         Ok(signing_key) => {
             let verifying_key = signing_key.verifying_key();
@@ -47,49 +53,5 @@ pub fn verify(public_key: String, transaction_id: String, signature: String) -> 
     match verifying_key.verify(&decode_hex(transaction_id), &signature) {
         Ok(()) => Ok(()),
         Err(error) => Err(error.to_string())
-    }
-}
-
-fn encode_hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|n| format!("{:02X}", n)).collect::<String>()
-}
-
-fn decode_hex(hex: String) -> Vec<u8> {
-    (0..hex.as_str().len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap())
-        .collect::<Vec<u8>>()
-}
-
-pub struct KeyPair {
-    name: String,
-    private_key: SigningKey,
-    public_key: VerifyingKey,
-}
-
-impl KeyPair {
-    pub fn name(&self) -> String { self.name.clone() }
-
-    pub fn public_key(&self) -> String {
-        let bytes = self.public_key.to_encoded_point(false).to_bytes();
-        encode_hex(&bytes)
-    }
-
-    pub fn private_key(&self) -> String {
-        let bytes = self.private_key.to_bytes();
-        encode_hex(&bytes)
-    }
-
-    pub fn generate(name: String) -> Self{
-        let private_key: SigningKey = SigningKey::random(&mut OsRng);
-
-        let binding = private_key.clone();
-        let public_key: &VerifyingKey = binding.verifying_key();
-
-        KeyPair {
-            name,
-            private_key,
-            public_key: *public_key,
-        }
     }
 }

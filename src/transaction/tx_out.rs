@@ -1,4 +1,7 @@
-#[derive(Clone)]
+use std::fmt;
+use serde::Serialize;
+
+#[derive(Clone, Serialize)]
 pub struct TxOut {
     address: String,
     amount: u32,
@@ -13,3 +16,11 @@ impl TxOut {
     }
 }
 
+impl fmt::Display for TxOut {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "TxOut{{address:{},amount:{}}}",
+            self.address(),
+            self.amount(),
+        )
+    }
+}

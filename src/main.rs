@@ -10,6 +10,7 @@ use dotenv;
 use sqlx::sqlite::SqlitePool;
 use std::env;
 use blockchain_rust::{
+    block::Block,
     database::{
         Database,
         sqlite::SqliteDatabase,
@@ -28,6 +29,7 @@ async fn main() {
         .route("/mine_block", post(mine_block::<SqliteDatabase>))
         .route("/peers", get(peers))
         .route("/add_peers", post(add_peers))
+        .route("/send_transaction", post(send_transaction))
         .with_state(db);
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
 
@@ -49,7 +51,7 @@ async fn mine_block<T: Database>(
     Json(request): Json<MineBlockRequest>
 ) -> impl IntoResponse {
     let mut block_chain = db.find_block_chain().await.unwrap();
-    let new_block = block_chain.append_new_block(request.data);
+    let new_block = block_chain.append_new_block(vec!());
 
     db.save_block(new_block.clone()).await.unwrap();
     Json(new_block)
@@ -58,4 +60,8 @@ async fn mine_block<T: Database>(
 async fn peers() {}
 
 async fn add_peers() {}
+
+async fn send_transaction() {
+
+}
 
